@@ -24,5 +24,19 @@ namespace MinesweeperModel
                     return new Point { X = 20, Y = 20 };
             }
         }
+
+        public static int GetBombNumber(this DifficultyLevel difficultyLevel)
+        {
+            switch (difficultyLevel)
+            {
+                case DifficultyLevel.Easy:
+                    return 10;
+                case DifficultyLevel.Medium:
+                    return 40;
+                case DifficultyLevel.Hard:
+                default:
+                    return 99;
+            }
+        }
     }
 }

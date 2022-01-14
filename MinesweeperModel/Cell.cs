@@ -5,5 +5,6 @@
         public bool IsBomb { get; set; }
         public int BombCount { get; set; }
         public bool IsFlagged { get; set; }
+        public int NeighborCount { get; set; }
     }
 }
