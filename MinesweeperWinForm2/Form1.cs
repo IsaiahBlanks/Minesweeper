@@ -6,6 +6,7 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -15,7 +16,11 @@ namespace Minesweeper5
     {
         int RowCount = 5, ColCount = 8;
         Button[,] buttons;
-        MinesweeperModel.Model model = new MinesweeperModel.Model();
+        Model model = new Model();
+        List<Point> changedCells = new List<Point>();
+        bool firstClick = true;
+        private DateTime start;
+
         public Form1()
         {
             InitializeComponent();
@@ -26,51 +31,25 @@ namespace Minesweeper5
         private void InitializeComponent2()
         {
             comboBox1.SelectedIndex = 2;
-
-            // Resize Window not allowed
-            //buttons = new Button[RowCount, ColCount];
-            //bool color = false;
-            //for (int r = 0; r < RowCount; r++)
-            //    for (int c = 0; c < ColCount; c++)
-            //    {
-            //        buttons[r, c] = new System.Windows.Forms.Button();
-            //        buttons[r, c].Dock = DockStyle.Fill;
-            //        // TabIndex in order 0..RowCount*ColCount-1
-            //        this.tableLayoutPanel1.Controls.Add(buttons[r, c], c, r);
-            //        buttons[r, c].Text = $"[{r}][{c}]";
-            //        buttons[r, c].UseVisualStyleBackColor = true;
-
-            //        buttons[r, c].Click += OnButtonClick;
-            //        buttons[r, c].Tag = new Point(c,r);
-            //      //  buttons[r, c].BackColor = color ? Color.Green : Color.GreenYellow;
-            //        color = ! color;
-            //    }
-
-            //// 
-            //// tableLayoutPanel1
-            //// 
-            //this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
-            //this.tableLayoutPanel1.ColumnCount = ColCount;
-            //for (int c = 0; c < ColCount; c++)
-            //{
-            //    this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F / ColCount)); 
-            //}
-
-
-            //this.tableLayoutPanel1.RowCount = RowCount;
-            //for (int r = 0; r < RowCount; r++)
-            //    this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F / RowCount));
-
-
-
-            // TODO change cursor to arrow
-
-
         }
 
         private void Form1_Load(object sender, EventArgs e)
         {
-            
+            timer1.Start();
+            timer1.Tick += TimerTick;
+            start = DateTime.Now;
+        }
+
+        private void TimerTick(object sender, EventArgs e)
+        {
+
+            label2.Text = "Seconds: " + ((int) (DateTime.Now - start).TotalSeconds).ToString();
+        }
+
+
+        public void FormThreadProcedure()
+        {
+            SlowComputation();
         }
 
         private async void OnButtonClick(object sender, EventArgs e)
@@ -79,56 +58,82 @@ namespace Minesweeper5
             Button sourceButton = (Button)sender;
             Point p = (Point)sourceButton.Tag;
 
-            // alt not needed - loop through all buttons and check == with sender
-            var changedCells = model.OpenCell(p.X, p.Y, new List<Point>()); // how to dtermine row and column?
+            changedCells = model.OpenCell(p.X, p.Y, new List<Point>());
+            UpdateForm(changedCells);
 
+            Thread t = new Thread(new ThreadStart(FormThreadProcedure));
+            t.Start();
+
+            await SlowComputationAsync();
+        }
+
+        private void UpdateForm(List<Point> changedCells)
+        {
             foreach (Point pnt in changedCells)
             {
                 buttons[pnt.Y, pnt.X].Enabled = false;
+                buttons[pnt.Y, pnt.X].BackColor = Color.ForestGreen;
+                //if the games first click is a bomb, move the bomb somewhere else
+                if (firstClick && model.GetCell(pnt.X, pnt.Y).IsBomb)
+                {
+                    bool switched = false;
+                    Random random = new Random();
+                    while (!switched)
+                    {
+                        int row = random.Next(0, RowCount);
+                        int col = random.Next(0, ColCount);
+                        if (!model.GetCell(col, row).IsBomb)
+                        {
+                            model.GetCell(col, row).IsBomb = true;
+                            model.GetCell(pnt.X, pnt.Y).IsBomb = false;
+                            model.SetAllNeighborCounts();
+                            switched = true;
+                        }
+                    }
+                } else if (firstClick)
+                {
+                    firstClick = false;
+                }
 
-                if (model.GetCell(pnt.X, pnt.Y).IsBomb)
+                if (model.GetCell(pnt.X, pnt.Y).IsBomb && !firstClick)
                 {
                     buttons[pnt.Y, pnt.X].Text = "X";
                     foreach (Button b in buttons)
                     {
                         b.Enabled = false;
+                        b.BackColor = Color.ForestGreen;
                     }
-                } else if (model.GetCell(pnt.X, pnt.Y).NeighborCount > 0)
+                    label1.Text = "Game Over!";
+                }
+                else if (model.GetCell(pnt.X, pnt.Y).NeighborCount > 0)
                 {
                     buttons[pnt.Y, pnt.X].Text = model.GetCell(pnt.X, pnt.Y).NeighborCount.ToString();
-                } 
+                }
             }
-
-
-
-
-
-            // UpdateUI based on move
-            // OPtion1 update entire UI from model
-            // Option 2 (RECOMMENDED) update cells that changed
-
-            
-
-            // if Bomb, how does model indicate that?
-
-            // Create a  New Thread
-            // call in new Thread SlowComputation();
-            // New thread calls Form Update to display completed
-
-            // return before new thread completes
-
-            // Starts an async method which calls SlowComputation
-            // return from this event handler
-            // async will continue running in this method
-
-            //await SlowComputationAsync();
         }
 
         private async Task SlowComputationAsync()
         {
+            Color[] color = new Color[] { Color.Red, Color.Orange, Color.Yellow, Color.Blue, Color.Indigo, Color.Violet };
+            Random random = new Random();
             await Task.Delay(2000);
-
-            this.BackColor = Color.FromArgb(new Random().Next(255), new Random().Next(255), new Random().Next(255));
+            if (label1.Text == "Game Over!")
+            {
+                for (int i = 0; i < buttons.GetLength(0); i++)
+                {
+                    for (int j = 0; j < buttons.GetLength(1); j++)
+                    {
+                        if (model.GetCell(j, i).IsBomb && !model.GetCell(j, i).IsFlagged)
+                        {
+                            buttons[i, j].BackColor = color[random.Next(0, 6)];
+                            buttons[i, j].Text = "X";
+                            model.GetCell(j, i).IsFlagged = true;
+                            await Task.Delay(50);
+                        }
+                    }
+                }
+            }
+       
         }
 
         private void difficultyLevel_SelectedIndexChanged(object sender, EventArgs e)
@@ -141,7 +146,7 @@ namespace Minesweeper5
         private void GridSetup(DifficultyLevel dl)
         {
 
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
+            ((ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
@@ -154,6 +159,7 @@ namespace Minesweeper5
             this.tableLayoutPanel1.ColumnStyles.Clear();
             this.tableLayoutPanel1.RowStyles.Clear();
 
+            firstClick = true;
 
             // Resize Window not allowed
             buttons = new Button[RowCount, ColCount];
@@ -172,37 +178,42 @@ namespace Minesweeper5
                     buttons[r, c].Tag = new Point(c, r);
                     buttons[r, c].BackColor = color ? Color.Green : Color.GreenYellow;
                     buttons[r, c].Font = new Font("Verdana", 12, FontStyle.Bold);
+                    buttons[r, c].Padding = new Padding(0);
+                    buttons[r, c].Margin = new Padding(0);
                     color = !color;
                 }
 
             // 
             // tableLayoutPanel1
             // 
+
+            label1.Text = "";
             this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tableLayoutPanel1.ColumnCount = ColCount;
             for (int c = 0; c < ColCount; c++)
             {
-                this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F / ColCount));
+                this.tableLayoutPanel1.ColumnStyles.Add(new ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F / ColCount));
             }
 
 
             this.tableLayoutPanel1.RowCount = RowCount;
             for (int r = 0; r < RowCount; r++)
-                this.tableLayoutPanel1.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Percent, 100F / RowCount));
+                this.tableLayoutPanel1.RowStyles.Add(new RowStyle(System.Windows.Forms.SizeType.Percent, 100F / RowCount));
 
             this.splitContainer1.Panel1.ResumeLayout(false);
             this.splitContainer1.Panel2.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
+            ((ISupportInitialize)(this.splitContainer1)).EndInit();
             this.splitContainer1.ResumeLayout(false);
             this.tableLayoutPanel1.ResumeLayout(true);
             this.ResumeLayout(true);
 
+            start = DateTime.Now;
             //Refresh();
         }
 
 
 
-        private void SlowComputation()
+        private static void SlowComputation()
         {
             System.Threading.Thread.Sleep(5000);
         }

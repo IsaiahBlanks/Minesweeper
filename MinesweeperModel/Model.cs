@@ -91,7 +91,7 @@ namespace MinesweeperModel
             this.difficultyLevel = level;
             this.bombCount = level.GetBombNumber();
 
-            
+
             board = new Cell[difficultyLevel.GetSize().Y, difficultyLevel.GetSize().X];
             for (int x = 0; x < board.GetLength(1); x++)
                 for (int y = 0; y < board.GetLength(0); y++)
@@ -100,7 +100,7 @@ namespace MinesweeperModel
             int bombsLeft = bombCount;
             while (bombsLeft > 0)
             {
-                var random = new Random(); 
+                var random = new Random();
                 for (int i = 0; i < board.GetLength(0); i++)
                 {
                     for (int j = 0; j < board.GetLength(0); j++)
@@ -114,19 +114,25 @@ namespace MinesweeperModel
                 }
             }
 
+            SetAllNeighborCounts();
+
+        }
+
+        public void SetAllNeighborCounts()
+        {
             for (int i = 0; i < board.GetLength(0); i++)
             {
                 for (int j = 0; j < board.GetLength(1); j++)
                 {
-                    if (!board[i, j].IsBomb) { 
-                        board[i, j].NeighborCount = GetNeighborCount(i, j); 
+                    if (!board[i, j].IsBomb)
+                    {
+                        board[i, j].NeighborCount = CalculateNeighborCount(i, j);
                     }
                 }
             }
-
         }
 
-        private int GetNeighborCount(int i, int j)
+        private int CalculateNeighborCount(int i, int j)
         {
             int count = 0;
             for (int k = i - 1; k <= i+1; k++)
